@@ -6,65 +6,62 @@ echo "ComfyUI TensorDock Startup"
 echo "=========================================="
 echo ""
 
-cd /workspace/ComfyUI
+# Background function to download models after ComfyUI setup completes
+background_model_downloader() {
+    MODELS_FLAG="/workspace/.models_downloaded"
+    DOWNLOAD_LOG="/workspace/model_download.log"
 
-# Check if models have been downloaded
-MODELS_FLAG="/workspace/.models_downloaded"
+    exec > >(tee -a "$DOWNLOAD_LOG") 2>&1
 
-if [ ! -f "$MODELS_FLAG" ]; then
-    echo "📦 First-time setup detected!"
-    echo "📥 Downloading models (this will take 15-20 minutes)..."
-    echo ""
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Background model downloader started"
 
-    # Run the model downloader
-    python3 /workspace/download_models.py
+    # Wait for ComfyUI setup to complete (indicated by run_gpu.sh existing)
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Waiting for ComfyUI setup to complete..."
+    while [ ! -f "/workspace/run_gpu.sh" ]; do
+        sleep 2
+    done
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ComfyUI setup complete, run_gpu.sh found"
 
-    # Create flag file to mark models as downloaded
-    touch "$MODELS_FLAG"
-    echo ""
-    echo "✅ Models downloaded successfully!"
-else
-    echo "✅ Models already downloaded (skip with: rm /workspace/.models_downloaded)"
-fi
+    # Wait for ComfyUI to be listening on port 8188
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Waiting for ComfyUI to start on port 8188..."
+    for i in {1..60}; do
+        if netstat -tuln 2>/dev/null | grep -q ":8188 " || ss -tuln 2>/dev/null | grep -q ":8188 "; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ComfyUI is now listening on port 8188"
+            break
+        fi
+        sleep 2
+    done
 
-# Detect VRAM
-if command -v nvidia-smi &> /dev/null; then
-    TOTAL_VRAM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1)
-    VRAM_GB=$((TOTAL_VRAM / 1024))
-    GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)
+    # Additional 5 second grace period to ensure ComfyUI is fully initialized
+    sleep 5
 
-    echo ""
-    echo "=========================================="
-    echo "GPU: $GPU_NAME"
-    echo "VRAM: ${VRAM_GB}GB"
-    echo "=========================================="
-    echo ""
+    # Check if models need to be downloaded
+    if [ ! -f "$MODELS_FLAG" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting model download..."
+        echo "📦 First-time setup detected!"
+        echo "📥 Downloading models in background (this will take 15-20 minutes)..."
+        echo ""
 
-    # Determine launch flags based on VRAM
-    if [ "$VRAM_GB" -le 12 ]; then
-        echo "🚀 Launching ComfyUI with --lowvram mode (≤12GB VRAM)"
-        VRAM_FLAG="--lowvram"
-    elif [ "$VRAM_GB" -le 16 ]; then
-        echo "🚀 Launching ComfyUI with --normalvram mode (12-16GB VRAM)"
-        VRAM_FLAG="--normalvram"
+        # Run the model downloader
+        cd /workspace
+        python3 /workspace/download_models.py
+
+        # Create flag file to mark models as downloaded
+        touch "$MODELS_FLAG"
+        echo ""
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ Models downloaded successfully!"
     else
-        echo "🚀 Launching ComfyUI with high VRAM mode (>16GB VRAM)"
-        VRAM_FLAG=""
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ Models already downloaded (skip with: rm /workspace/.models_downloaded)"
     fi
-else
-    echo "⚠️  nvidia-smi not found, launching with default settings"
-    VRAM_FLAG=""
-fi
+}
 
-echo ""
-echo "=========================================="
-echo "🌐 Access ComfyUI at:"
-echo "   http://localhost:8188"
-echo "   or"
-echo "   http://$(hostname -I | awk '{print $1}'):8188"
-echo ""
-echo "Press Ctrl+C to stop"
-echo "=========================================="
+# Launch model downloader in background
+background_model_downloader &
+DOWNLOADER_PID=$!
+
+echo "📥 Model downloader started in background (PID: $DOWNLOADER_PID)"
+echo "📋 Check download progress: tail -f /workspace/model_download.log"
 echo ""
 
-/bin/bash /entrypoint.sh
+# Immediately start the original ComfyUI entrypoint
+exec /entrypoint.sh
