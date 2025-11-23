@@ -59,33 +59,32 @@ if [ "$NEEDS_CUDA_UPGRADE" = true ]; then
     echo ""
     echo "🔧 Starting CUDA 12.8 installation..."
     echo ""
-
-    # Step 1: Download CUDA keyring
-    echo "📥 Downloading NVIDIA CUDA keyring..."
-    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
-
-    # Step 2: Install keyring
-    echo "🔑 Installing CUDA keyring..."
-    sudo dpkg -i cuda-keyring_1.1-1_all.deb
-
-    # Step 3: Update package lists
-    echo "📋 Updating package lists..."
-    sudo apt update
-
-    # Step 3a: Remove hold status from NVIDIA packages
+    # Step 1: Remove hold status from NVIDIA packages
     echo "🔓 Removing hold status from NVIDIA packages..."
     sudo apt-mark unhold nvidia* libnvidia* || true
 
-    # Step 4: Purge old NVIDIA installations
+    # Step 2: Purge old NVIDIA installations
     echo "🗑️  Removing old NVIDIA drivers and CUDA installations..."
     sudo apt --purge remove nvidia-* cuda-* libnvidia-* -y || true
 
-    # Step 5: Install CUDA 12.8 and drivers
+    # Step 3: Download CUDA keyring
+    echo "📥 Downloading NVIDIA CUDA keyring..."
+    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+
+    # Step 4: Install keyring
+    echo "🔑 Installing CUDA keyring..."
+    sudo dpkg -i cuda-keyring_1.1-1_all.deb
+
+    # Step 5: Update package lists
+    echo "📋 Updating package lists..."
+    sudo apt update
+
+    # Step 6: Install CUDA 12.8 and drivers
     echo "📦 Installing CUDA 12.8, drivers, and NVIDIA Container Toolkit..."
     echo "   This may take several minutes..."
     sudo apt install -y cuda-drivers-570 cuda-12-8 cuda-toolkit-12-8 nvidia-driver-570-server nvidia-container-toolkit
 
-    # Step 5a: Install NVIDIA GPUDirect Storage
+    # Step 6a: Install NVIDIA GPUDirect Storage
     echo "💾 Installing NVIDIA GPUDirect Storage..."
     sudo apt install -y nvidia-gds-12-8
 
