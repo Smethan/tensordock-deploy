@@ -67,5 +67,4 @@ echo "Press Ctrl+C to stop"
 echo "=========================================="
 echo ""
 
-# Start ComfyUI
-exec python main.py --listen 0.0.0.0 --port 8188 $VRAM_FLAG --preview-method auto "$@"
+/bin/bash /entrypoint.sh
