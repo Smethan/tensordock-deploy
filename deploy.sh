@@ -88,9 +88,6 @@ if [ "$NEEDS_CUDA_UPGRADE" = true ]; then
     echo "💾 Installing NVIDIA GPUDirect Storage..."
     sudo apt install -y nvidia-gds-12-8
 
-    echo "📦 Installing CUDA 12.8"
-    sudo apt install cuda-12-8
-
     # Configure Docker runtime for NVIDIA
     echo "🐳 Configuring Docker runtime for NVIDIA..."
     sudo nvidia-ctk runtime configure --runtime=docker || true
