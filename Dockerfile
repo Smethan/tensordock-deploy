@@ -60,6 +60,7 @@ RUN chmod +x /workspace/entrypoint.sh
 # Setup venv for ComfyUI
 RUN python3 -m venv .venv
 RUN source .venv/bin/activate
+RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 RUN pip install -r requirements.txt
 
 # Expose ComfyUI port
