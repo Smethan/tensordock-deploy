@@ -65,7 +65,7 @@ HUGGINGFACE_MODELS = {
         {
             'repo': 'Kijai/WanVideo_comfy',
             'files': [
-                '/Lightx2v/lightx2v_I2V_14B_480p_cfg_step_distill_rank128_bf16.safetensors'
+                'Lightx2v/lightx2v_I2V_14B_480p_cfg_step_distill_rank128_bf16.safetensors'
             ]
         }
     ]
