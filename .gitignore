@@ -1,0 +1,21 @@
+# Environment variables
+.env
+
+# Persistent data directory
+comfyui-data/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Docker
+.dockerignore
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+*.txt
