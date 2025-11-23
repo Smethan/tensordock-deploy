@@ -61,11 +61,11 @@ if [ "$NEEDS_CUDA_UPGRADE" = true ]; then
     echo ""
     # Step 1: Remove hold status from NVIDIA packages
     echo "🔓 Removing hold status from NVIDIA packages..."
-    sudo apt-mark unhold nvidia* libnvidia* || true
+    sudo apt-mark unhold nvidia\* libnvidia\* cuda\*|| true
 
     # Step 2: Purge old NVIDIA installations
     echo "🗑️  Removing old NVIDIA drivers and CUDA installations..."
-    sudo apt --purge remove nvidia-* cuda-* libnvidia-* -y || true
+    sudo apt --purge remove nvidia-\* cuda-\* libnvidia-\* -y || true
 
     # Step 3: Download CUDA keyring
     echo "📥 Downloading NVIDIA CUDA keyring..."
