@@ -1,50 +1,50 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  comfyui:
-    build: .
-    image: comfyui-tensordock:latest
-    container_name: comfyui-sageattention
+    comfyui:
+        build: .
+        image: comfyui-tensordock:latest
+        container_name: comfyui-sageattention
 
-    # GPU support - required for CUDA
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+        # GPU support - required for CUDA
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - driver: nvidia
+                          count: all
+                          capabilities: [gpu]
 
-    # Port mapping
-    ports:
-      - "8188:8188"
+        # Port mapping
+        ports:
+            - "8188:8188"
 
-    # Environment variables
-    environment:
-      - COMFYUI_PATH=/workspace/ComfyUI
-      - CIVITAI_API_KEY=${CIVITAI_API_KEY:-}
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+        # Environment variables
+        environment:
+            - COMFYUI_PATH=/workspace/ComfyUI
+            - CIVITAI_API_KEY=${CIVITAI_API_KEY:-}
+            - NVIDIA_VISIBLE_DEVICES=all
+            - NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
-    # Volume mounts for persistence
-    volumes:
-      # Persist models (most important - saves re-downloading)
-      - ./comfyui-data/models:/workspace/ComfyUI/models
-      # Persist outputs
-      - ./comfyui-data/output:/workspace/ComfyUI/output
-      # Persist custom nodes (optional)
-      - ./comfyui-data/custom_nodes:/workspace/ComfyUI/custom_nodes
-      # Persist the models downloaded flag
-      - ./comfyui-data/.models_downloaded:/workspace/.models_downloaded
+        # Volume mounts for persistence
+        volumes:
+            # Persist models (most important - saves re-downloading)
+            - ./comfyui-data/models:/workspace/models
+            # Persist outputs
+            - ./comfyui-data/output:/workspace/output
+            # Persist custom nodes (optional)
+            - ./comfyui-data/custom_nodes:/workspace/custom_nodes
+            # Persist the models downloaded flag
+            - ./comfyui-data/.models_downloaded:/workspace/.models_downloaded
 
-    # Restart policy
-    restart: unless-stopped
+        # Restart policy
+        restart: unless-stopped
 
-    # Shared memory size (important for large models)
-    shm_size: '8gb'
+        # Shared memory size (important for large models)
+        shm_size: "8gb"
 
-    # Optional: resource limits (adjust based on your TensorDock instance)
-    # deploy:
-    #   resources:
-    #     limits:
-    #       memory: 32G
+        # Optional: resource limits (adjust based on your TensorDock instance)
+        # deploy:
+        #   resources:
+        #     limits:
+        #       memory: 32G
