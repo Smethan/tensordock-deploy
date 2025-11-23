@@ -32,10 +32,10 @@ HUGGINGFACE_MODELS = {
     # Wan2.2 GGUF Models (quantized for low VRAM)
     'unet': [
         {
-            'repo': 'Kijai/WanVideo_comfy_GGUF',
+            'repo': 'QuantStack/Wan2.2-I2V-A14B-GGUF',
             'files': [
-                'Wan2.2-I2V-A14-BHighNoise-Q6_K.gguf',
-                'Wan2.2-I2V-A14B-LowNoise-Q6_K.gguf'
+                'HighNoise/Wan2.2-I2V-A14B-HighNoise-Q6_K.gguf',
+                'LowNoise/Wan2.2-I2V-A14B-LowNoise-Q6_K.gguf'
             ]
         }
     ],
@@ -43,9 +43,9 @@ HUGGINGFACE_MODELS = {
     # Text Encoder (CLIP/T5)
     'text_encoders': [
         {
-            'repo': 'Kijai/WanVideo_comfy_fp8_scaled',
+            'repo': 'Comfy-Org/Wan_2.1_ComfyUI_repackaged',
             'files': [
-                'text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors'
+                'split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors'
             ]
         }
     ],
@@ -53,9 +53,9 @@ HUGGINGFACE_MODELS = {
     # VAE
     'vae': [
         {
-            'repo': 'Kijai/WanVideo_comfy',
+            'repo': 'Comfy-Org/Wan_2.1_ComfyUI_repackaged',
             'files': [
-                'wan_2.1_vae.safetensors'
+                'split_files/vae/wan_2.1_vae.safetensors'
             ]
         }
     ],
@@ -65,8 +65,7 @@ HUGGINGFACE_MODELS = {
         {
             'repo': 'Kijai/WanVideo_comfy',
             'files': [
-                'Lightx2v/wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors',
-                'Lightx2v/wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors'
+                '/Lightx2v/lightx2v_I2V_14B_480p_cfg_step_distill_rank128_bf16.safetensors'
             ]
         }
     ]
