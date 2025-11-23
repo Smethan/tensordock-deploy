@@ -14,19 +14,20 @@ RUN apt-get update && apt-get install -y \
     python3.12 \
     python3.12-venv \
     python3.12-dev \
-    python3-pip \
     build-essential \
     wget \
     curl \
     git \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Python 3.12 as the default python3
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 \
     && update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
 
-# Upgrade pip for Python 3.12
-RUN python3.12 -m pip install --upgrade pip setuptools wheel
+# Bootstrap pip for Python 3.12 using ensurepip
+RUN python3.12 -m ensurepip --upgrade && \
+    python3.12 -m pip install --upgrade pip setuptools wheel
 
 # Copy the Python installer script
 COPY comfyui_triton_sageattention.py /workspace/comfyui_triton_sageattention.py
