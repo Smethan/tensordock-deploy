@@ -57,6 +57,11 @@ RUN mkdir -p models/checkpoints models/diffusion_models models/unet \
 COPY entrypoint.sh /workspace/entrypoint.sh
 RUN chmod +x /workspace/entrypoint.sh
 
+# Setup venv for ComfyUI
+RUN python3 -m venv .venv
+RUN source .venv/bin/activate
+RUN pip install -r requirements.txt
+
 # Expose ComfyUI port
 EXPOSE 8188
 
