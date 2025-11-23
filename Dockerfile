@@ -1,25 +1,54 @@
-FROM nextdiffusionai/comfyui-sageattention:cuda12.8
+FROM nvidia/cuda:12.8.0-devel-ubuntu22.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Set working directory
 WORKDIR /workspace
 
-# Install additional dependencies
+# Install system dependencies including Python 3.12
 RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update && apt-get install -y \
+    python3.12 \
+    python3.12-venv \
+    python3.12-dev \
+    python3-pip \
+    build-essential \
     wget \
     curl \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Ensure ComfyUI exists and set it as the working directory
-# ENV COMFYUI_PATH=/workspace/ComfyUI
-# RUN if [ ! -d "$COMFYUI_PATH" ]; then \
-#     git clone https://github.com/comfyanonymous/ComfyUI.git $COMFYUI_PATH; \
-#     fi
+# Set Python 3.12 as the default python3
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 \
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
 
-WORKDIR $COMFYUI_PATH
+# Upgrade pip for Python 3.12
+RUN python3.12 -m pip install --upgrade pip setuptools wheel
+
+# Copy the Python installer script
+COPY comfyui_triton_sageattention.py /workspace/comfyui_triton_sageattention.py
+RUN chmod +x /workspace/comfyui_triton_sageattention.py
+
+# Run the installer in non-interactive mode
+# This will:
+# - Create virtual environment at /workspace/venv
+# - Install build tools
+# - Detect CUDA and install PyTorch
+# - Install Triton
+# - Clone ComfyUI to /workspace/ComfyUI
+# - Install SageAttention and custom nodes
+# - Create run_comfyui.sh script
+RUN python3.12 /workspace/comfyui_triton_sageattention.py \
+    --install \
+    --non-interactive \
+    --base-path /workspace \
+    --verbose
 
 # Install additional Python packages for model downloading
-RUN pip install --no-cache-dir \
+RUN /workspace/venv/bin/pip install --no-cache-dir \
     requests \
     tqdm \
     huggingface-hub
@@ -28,38 +57,9 @@ RUN pip install --no-cache-dir \
 COPY download_models.py /workspace/download_models.py
 RUN chmod +x /workspace/download_models.py
 
-# Install custom nodes
-# RUN mkdir -p custom_nodes && \
-#     cd custom_nodes && \
-#     # ComfyUI Manager
-#     if [ ! -d "ComfyUI-Manager" ]; then \
-#     git clone https://github.com/ltdrdata/ComfyUI-Manager.git; \
-#     fi && \
-#     # WanVideo Wrapper
-#     if [ ! -d "ComfyUI-WanVideoWrapper" ]; then \
-#     git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git; \
-#     fi && \
-#     # VideoHelper Suite
-#     if [ ! -d "ComfyUI-VideoHelperSuite" ]; then \
-#     git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git; \
-#     fi && \
-#     # GGUF support
-#     if [ ! -d "ComfyUI-GGUF" ]; then \
-#     git clone https://github.com/city96/ComfyUI-GGUF.git; \
-#     fi && \
-#     cd ..
-
-# # Create directories for models and outputs
-# RUN mkdir -p models/checkpoints models/diffusion_models models/unet \
-#     models/vae models/text_encoders models/loras output
-
 # Copy entrypoint script
 COPY entrypoint.sh /workspace/entrypoint.sh
 RUN chmod +x /workspace/entrypoint.sh
-
-# Setup venv for ComfyUI
-# RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-# RUN pip install -r requirements.txt
 
 # Expose ComfyUI port
 EXPOSE 8188

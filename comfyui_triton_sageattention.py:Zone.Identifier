@@ -1,0 +1,4 @@
+[ZoneTransfer]
+ZoneId=3
+ReferrerUrl=https://github.com/
+HostUrl=https://raw.githubusercontent.com/DazzleML/comfyui-triton-and-sageattention-installer/refs/heads/main/comfyui_triton_sageattention.py

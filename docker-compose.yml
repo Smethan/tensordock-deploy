@@ -27,13 +27,14 @@ services:
             - NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
         # Volume mounts for persistence
+        # IMPORTANT: Mounts are to ComfyUI subdirectories to avoid conflicts with installer
         volumes:
             # Persist models (most important - saves re-downloading)
-            - ./comfyui-data/models:/workspace/models
+            - ./comfyui-data/models:/workspace/ComfyUI/models
             # Persist outputs
-            - ./comfyui-data/output:/workspace/output
-            # Persist custom nodes (optional)
-            - ./comfyui-data/custom_nodes:/workspace/custom_nodes
+            - ./comfyui-data/output:/workspace/ComfyUI/output
+            # Persist custom nodes (optional - installer creates some by default)
+            - ./comfyui-data/custom_nodes:/workspace/ComfyUI/custom_nodes
             # Persist the models downloaded flag
             - ./comfyui-data/.models_downloaded:/workspace/.models_downloaded
 
