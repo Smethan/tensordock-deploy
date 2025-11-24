@@ -2,6 +2,7 @@
 """
 ComfyUI Model Auto-Downloader for TensorDock - FIXED VERSION
 Correct HuggingFace file paths
+Uses direct downloads to avoid huggingface_hub / transformers conflicts
 """
 
 import os
@@ -9,7 +10,6 @@ import sys
 import requests
 from pathlib import Path
 from tqdm import tqdm
-from huggingface_hub import hf_hub_download
 import json
 
 COMFYUI_BASE = os.environ.get('COMFYUI_PATH', '/workspace/ComfyUI')
@@ -121,7 +121,7 @@ def download_file_with_progress(url, dest_path, headers=None):
                 pbar.update(len(chunk))
 
 def download_from_huggingface(category, repo_info):
-    """Download models from HuggingFace"""
+    """Download models from HuggingFace using direct URLs"""
     target_dir = os.path.join(MODELS_DIR, category)
     os.makedirs(target_dir, exist_ok=True)
 
@@ -147,26 +147,17 @@ def download_from_huggingface(category, repo_info):
 
         try:
             print(f"⬇ Downloading {filename}...")
-            downloaded_path = hf_hub_download(
-                repo_id=repo_id,
-                filename=filename,
-                local_dir=target_dir,
-                local_dir_use_symlinks=False,
-                resume_download=True
-            )
+            # Build direct HuggingFace download URL
+            # Format: https://huggingface.co/{repo_id}/resolve/main/{filename}
+            url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
 
-            # If the file was downloaded to a subdirectory, move it to the target directory
-            if os.path.dirname(downloaded_path) != target_dir:
-                final_path = os.path.join(target_dir, basename)
-                if downloaded_path != final_path:
-                    os.rename(downloaded_path, final_path)
-                    print(f"✓ Moved to {final_path}")
-
+            download_file_with_progress(url, target_path)
             print(f"✓ Downloaded {basename}")
         except Exception as e:
             print(f"✗ Failed to download {filename}: {e}")
             print(f"   Repo: {repo_id}")
             print(f"   File: {filename}")
+            print(f"   URL: {url}")
 
 def download_from_civitai(category, model_info):
     """Download models from CivitAI"""
