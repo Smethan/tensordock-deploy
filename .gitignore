@@ -20,3 +20,4 @@ Thumbs.db
 *.log
 *.txt
 orig_entry.sh
+server_info.json

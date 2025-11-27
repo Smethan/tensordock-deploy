@@ -3,9 +3,28 @@
 
 set -e
 
+# Parse command line arguments
+FORCE_YES=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -y|--yes)
+            FORCE_YES=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [-y|--yes]"
+            echo "  -y, --yes    Automatically accept all prompts"
+            exit 1
+            ;;
+    esac
+done
+
 echo "=========================================="
 echo "ComfyUI Docker Deployment for TensorDock"
 echo "=========================================="
+echo ""
+echo "🔍 Debug: FORCE_YES=$FORCE_YES (should be 'true' if -y was passed)"
 echo ""
 
 # ==========================================
@@ -49,7 +68,13 @@ if [ "$NEEDS_CUDA_UPGRADE" = true ]; then
     echo ""
     echo "⚠️  WARNING: This will remove existing NVIDIA drivers!"
     echo ""
-    read -p "Continue with CUDA 12.8 installation? (y/n): " confirm
+    
+    if [ "$FORCE_YES" = true ]; then
+        confirm="y"
+        echo "Continue with CUDA 12.8 installation? (y/n): y [auto-accepted]"
+    else
+        read -p "Continue with CUDA 12.8 installation? (y/n): " confirm
+    fi
 
     if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
         echo "❌ Installation cancelled. CUDA 12.8 is required to run this setup."
@@ -65,7 +90,7 @@ if [ "$NEEDS_CUDA_UPGRADE" = true ]; then
 
     # Step 2: Purge old NVIDIA installations
     echo "🗑️  Removing old NVIDIA drivers and CUDA installations..."
-    sudo apt --purge remove nvidia-\* cuda-\* libnvidia-\* -y || true
+    sudo apt-get --purge remove nvidia-\* cuda-\* libnvidia-\* -y || true
 
     # Step 3: Download CUDA keyring
     echo "📥 Downloading NVIDIA CUDA keyring..."
@@ -77,16 +102,16 @@ if [ "$NEEDS_CUDA_UPGRADE" = true ]; then
 
     # Step 5: Update package lists
     echo "📋 Updating package lists..."
-    sudo apt update
+    sudo apt-get update
 
     # Step 6: Install CUDA 12.8 and drivers
     echo "📦 Installing CUDA 12.8, drivers, and NVIDIA Container Toolkit..."
     echo "   This may take several minutes..."
-    sudo apt install -y cuda-toolkit-12-8 nvidia-driver-570-server nvidia-container-toolkit
+    sudo apt-get install -y cuda-toolkit-12-8 nvidia-driver-570-server nvidia-container-toolkit
 
     # Step 6a: Install NVIDIA GPUDirect Storage
     echo "💾 Installing NVIDIA GPUDirect Storage..."
-    sudo apt install -y nvidia-gds-12-8
+    sudo apt-get install -y nvidia-gds-12-8
 
     # Configure Docker runtime for NVIDIA
     echo "🐳 Configuring Docker runtime for NVIDIA..."
@@ -102,7 +127,13 @@ if [ "$NEEDS_CUDA_UPGRADE" = true ]; then
     echo "After reboot, run this script again to complete deployment:"
     echo "  bash deploy.sh"
     echo ""
-    read -p "Reboot now? (y/n): " reboot_confirm
+    
+    if [ "$FORCE_YES" = true ]; then
+        reboot_confirm="y"
+        echo "Reboot now? (y/n): y [auto-accepted]"
+    else
+        read -p "Reboot now? (y/n): " reboot_confirm
+    fi
 
     if [ "$reboot_confirm" = "y" ] || [ "$reboot_confirm" = "Y" ]; then
         echo "🔄 Rebooting system..."
@@ -182,7 +213,13 @@ Signed-By: /etc/apt/keyrings/docker.asc" | sudo tee /etc/apt/sources.list.d/dock
     echo "⚠️  IMPORTANT: You need to log out and back in for group changes to take effect."
     echo "   After relogging, run this script again to complete deployment."
     echo ""
-    read -p "Would you like to activate Docker for this session with 'newgrp docker'? (y/n): " newgrp_confirm
+    
+    if [ "$FORCE_YES" = true ]; then
+        newgrp_confirm="y"
+        echo "Would you like to activate Docker for this session with 'newgrp docker'? (y/n): y [auto-accepted]"
+    else
+        read -p "Would you like to activate Docker for this session with 'newgrp docker'? (y/n): " newgrp_confirm
+    fi
 
     if [ "$newgrp_confirm" = "y" ] || [ "$newgrp_confirm" = "Y" ]; then
         echo "🔄 Activating docker group and continuing deployment..."
@@ -241,7 +278,13 @@ if [ -f .env ]; then
         echo "⚠️  No CivitAI API key in .env (NSFW models will be skipped)"
     fi
 else
-    read -p "Enter your CivitAI API key (or press Enter to skip): " api_key
+    if [ "$FORCE_YES" = true ]; then
+        api_key=""
+        echo "Enter your CivitAI API key (or press Enter to skip): [auto-skipped]"
+    else
+        read -p "Enter your CivitAI API key (or press Enter to skip): " api_key
+    fi
+    
     if [ -n "$api_key" ]; then
         echo "CIVITAI_API_KEY=$api_key" > .env
         echo "✅ API key saved to .env"
