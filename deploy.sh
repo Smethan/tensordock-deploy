@@ -130,7 +130,7 @@ if [ "$NEEDS_CUDA_UPGRADE" = true ]; then
     # Step 6: Install CUDA 12.8 and drivers
     echo "📦 Installing CUDA 12.8, drivers, and NVIDIA Container Toolkit..."
     echo "   This may take several minutes..."
-    sudo apt-get install -y cuda-toolkit-12-8 nvidia-driver-570-server nvidia-container-toolkit
+    sudo apt-get install -y cuda-toolkit-12-8 nvidia-driver-570-server-open nvidia-container-toolkit
 
     # Step 6a: Install NVIDIA GPUDirect Storage
     echo "💾 Installing NVIDIA GPUDirect Storage..."

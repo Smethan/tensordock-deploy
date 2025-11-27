@@ -73,16 +73,6 @@ echo "=========================================="
 echo "Started: $(date)"
 echo ""
 
-# Update system
-echo "📦 Updating system packages..."
-export DEBIAN_FRONTEND=noninteractive
-sudo apt-get update
-sudo apt-get upgrade -y
-
-# Install git
-echo "📦 Installing git..."
-sudo apt-get install -y git
-
 # Clone the repository
 echo "📥 Cloning ComfyUI deployment repository..."
 cd /home/user
