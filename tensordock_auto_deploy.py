@@ -407,6 +407,65 @@ echo ""
 
         return result
 
+    def _wait_for_ssh_available(self, host: str, port: int, timeout: int = 300) -> bool:
+        """Actively poll SSH availability by attempting connections.
+        
+        Args:
+            host: SSH host address
+            port: SSH port number
+            timeout: Maximum time to wait in seconds
+            
+        Returns:
+            True if SSH becomes available, False if timeout reached
+        """
+        import subprocess
+        import time
+        
+        start_time = time.time()
+        attempt = 0
+        
+        print(f"   Polling SSH availability at {host}:{port}...")
+        
+        while time.time() - start_time < timeout:
+            attempt += 1
+            
+            # Attempt SSH connection with a quick timeout
+            ssh_test_cmd = [
+                "ssh",
+                "-p", str(port),
+                "-o", "StrictHostKeyChecking=no",
+                "-o", "UserKnownHostsFile=/dev/null",
+                "-o", "ConnectTimeout=5",
+                "-o", "BatchMode=yes",
+                "-i", f"{os.path.expanduser('~')}/.ssh/tensordock_key",
+                f"user@{host}",
+                "echo 'SSH_READY'"
+            ]
+            
+            try:
+                result = subprocess.run(
+                    ssh_test_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                
+                if result.returncode == 0 and "SSH_READY" in result.stdout:
+                    print(f"\n   ✅ SSH is available after {int(time.time() - start_time)}s (attempt {attempt})")
+                    return True
+                    
+            except (subprocess.TimeoutExpired, Exception) as e:
+                # Connection failed, continue polling
+                pass
+            
+            # Exponential backoff: 5s, 10s, 15s, 20s, then 20s intervals
+            wait_time = min(5 * (attempt if attempt <= 4 else 4), 20)
+            print(f"   SSH not ready yet (attempt {attempt}, waited {int(time.time() - start_time)}s)...", end="\r")
+            time.sleep(wait_time)
+        
+        print(f"\n   ❌ SSH did not become available within {timeout}s")
+        return False
+
     def wait_for_instance(self, instance_id: str, headers: dict, max_wait: int = 300) -> tuple:
         """Wait for instance to be running and return SSH details."""
         import requests
@@ -461,18 +520,27 @@ echo ""
 
                     if ssh_host:
                         print(f"\n   Instance running at {ssh_host}:{ssh_port}")
-                        # Wait a bit more for SSH to be fully ready
-                        print("   Waiting for SSH to be ready...")
-                        time.sleep(30)
-                        return ssh_host, ssh_port
+                        # Actively poll for SSH availability instead of passive wait
+                        if self._wait_for_ssh_available(ssh_host, ssh_port, timeout=120):
+                            return ssh_host, ssh_port
+                        else:
+                            print("   ⚠️ Instance running but SSH not available")
+                            return None, None
 
             time.sleep(10)
 
         return None, None
 
-    def run_remote_deployment(self, host: str, port: int,):
-        """SSH into the instance and run the deployment script."""
+    def run_remote_deployment(self, host: str, port: int, max_retries: int = 1):
+        """SSH into the instance and run the deployment script with reboot handling.
+        
+        Args:
+            host: SSH host address
+            port: SSH port number
+            max_retries: Maximum number of times to retry after reboot (default: 1)
+        """
         import subprocess
+        import time
 
         script_path = "/tmp/tensordock_setup.sh"
 
@@ -495,35 +563,91 @@ echo ""
             return
 
         print(f"   ✅ Script uploaded")
-        print(f"\n   🚀 Executing deployment (this will take ~10-15 minutes)...")
-        print(f"   Follow along with the output:\n")
+        
+        # Deployment loop with reboot handling
+        for attempt in range(max_retries + 1):
+            if attempt > 0:
+                print(f"\n   � Deployment attempt {attempt + 1} (post-reboot continuation)...")
+            else:
+                print(f"\n   �🚀 Executing deployment (this may take ~10-15 minutes)...")
+                print(f"   Follow along with the output:\n")
 
-        # Run the script over SSH with sudo to ensure all commands have root privileges
-        # Use -tt to force PTY allocation which fixes stdin/stdout for interactive commands
-        ssh_cmd = [
-            "ssh",
-            "-p", str(port),
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-i", f"{os.path.expanduser('~')}/.ssh/tensordock_key",
-            f"user@{host}",
-            "sudo bash /home/user/setup.sh"
-        ]
+            # Run the script over SSH with sudo to ensure all commands have root privileges
+            ssh_cmd = [
+                "ssh",
+                "-p", str(port),
+                "-o", "StrictHostKeyChecking=no",
+                "-o", "UserKnownHostsFile=/dev/null",
+                "-o", "ServerAliveInterval=5",
+                "-o", "ServerAliveCountMax=3",
+                "-i", f"{os.path.expanduser('~')}/.ssh/tensordock_key",
+                f"user@{host}",
+                "sudo bash /home/user/setup.sh"
+            ]
 
-        # Stream output in real-time
-        process = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-
-        for line in process.stdout:
-            print(f"   {line}", end="")
-
-        process.wait()
-
-        if process.returncode == 0:
-            print(f"\n\n🎉 Deployment completed successfully!")
-            print(f"   ComfyUI should be running at: http://{host}:8188")
-        else:
-            print(f"\n\n⚠️  Deployment script exited with code {process.returncode}")
-            print(f"   Check logs: ssh -p {port} -i {os.environ['SSH_PUB_KEY']} user@{host} 'tail -f /var/log/comfyui-setup.log'")
+            # Stream output in real-time
+            process = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            
+            last_output_time = time.time()
+            reboot_detected = False
+            
+            try:
+                for line in process.stdout:
+                    print(f"   {line}", end="")
+                    last_output_time = time.time()
+                    
+                    # Check for reboot indicators in output
+                    if "rebooting" in line.lower() or "system is going down" in line.lower():
+                        print(f"\n   🔄 Reboot detected in script output...")
+                        reboot_detected = True
+                
+                process.wait(timeout=30)  # Wait for process to complete with timeout
+                
+            except subprocess.TimeoutExpired:
+                # Process didn't complete within timeout after last output
+                # This might indicate a reboot
+                print(f"\n   ⚠️ SSH connection may have been interrupted...")
+                reboot_detected = True
+            
+            # Check exit code
+            exit_code = process.returncode if process.returncode is not None else -1
+            
+            # Handle different exit scenarios
+            if exit_code == 0:
+                # Clean exit - deployment completed successfully
+                print(f"\n\n🎉 Deployment completed successfully!")
+                print(f"   ComfyUI should be running at: http://{host}:8188")
+                return
+                
+            elif exit_code == 255 or reboot_detected:
+                # SSH disconnect (likely reboot) - exit code 255 is SSH disconnect
+                if attempt < max_retries:
+                    print(f"\n   🔄 SSH disconnected (likely server reboot)")
+                    print(f"   ⏳ Waiting for server to come back online...")
+                    
+                    # Wait a bit for reboot to initiate
+                    time.sleep(10)
+                    
+                    # Poll for SSH availability with longer timeout for reboot
+                    if self._wait_for_ssh_available(host, port, timeout=300):
+                        print(f"   ✅ Server is back online, continuing deployment...")
+                        # Continue to next iteration to re-execute deployment script
+                        continue
+                    else:
+                        print(f"\n   ❌ Server did not come back online within timeout")
+                        print(f"   Manual intervention may be required")
+                        return
+                else:
+                    print(f"\n   ❌ Maximum retry attempts ({max_retries}) reached")
+                    print(f"   Deployment may be incomplete")
+                    return
+            else:
+                # Other error
+                print(f"\n\n⚠️  Deployment script exited with code {exit_code}")
+                print(f"   Check logs: ssh -p {port} -i ~/.ssh/tensordock_key user@{host} 'tail -f /var/log/comfyui-setup.log'")
+                return
+        
+        print(f"\n   ⚠️ Deployment loop completed without success")
 
     def run_ssh_setup_on_selected_instance(self):
         """List instances and run SSH setup on the selected one."""

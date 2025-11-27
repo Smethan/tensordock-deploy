@@ -10,6 +10,22 @@ if [ "$EUID" -ne 0 ]; then
     exit # Should not be reached if exec is successful
 fi
 
+# Add CUDA path to environment for current script execution
+export PATH="/usr/local/cuda-12.8/bin:$PATH"
+
+# Define state file for post-reboot continuation
+STATE_FILE="/var/lib/tensordock-deploy/.reboot_required"
+
+# Check if this is a post-reboot run
+if [ -f "$STATE_FILE" ]; then
+    echo "🔄 Detected post-reboot run. Cleaning up state and continuing deployment..."
+    sudo rm "$STATE_FILE"
+    # We'll skip CUDA installation by setting this flag
+    SKIP_CUDA_INSTALL=true
+else
+    SKIP_CUDA_INSTALL=false
+fi
+
 # Parse command line arguments
 FORCE_YES=false
 while [[ $# -gt 0 ]]; do
@@ -43,7 +59,7 @@ CUDA_VERSION=""
 NEEDS_CUDA_UPGRADE=false
 
 # Check if CUDA is installed and get version
-if command -v nvcc &> /dev/null; then
+if [ -d "/usr/local/cuda-12.8" ] && command -v nvcc &> /dev/null; then
     CUDA_VERSION=$(nvcc --version | grep "release" | sed -n 's/.*release \([0-9]\+\.[0-9]\+\).*/\1/p')
     echo "✅ CUDA $CUDA_VERSION detected"
 
@@ -124,6 +140,10 @@ if [ "$NEEDS_CUDA_UPGRADE" = true ]; then
     echo "🐳 Configuring Docker runtime for NVIDIA..."
     sudo nvidia-ctk runtime configure --runtime=docker || true
 
+    # Create state file to indicate reboot is needed
+    sudo mkdir -p "$(dirname "$STATE_FILE")"
+    sudo touch "$STATE_FILE"
+
     echo ""
     echo "=========================================="
     echo "✅ CUDA 12.8 Installation Complete!"
@@ -135,20 +155,20 @@ if [ "$NEEDS_CUDA_UPGRADE" = true ]; then
     echo "  bash deploy.sh"
     echo ""
     
-    # if [ "$FORCE_YES" = true ]; then
-    #     reboot_confirm="y"
-    #     echo "Reboot now? (y/n): y [auto-accepted]"
-    # else
-    #     read -p "Reboot now? (y/n): " reboot_confirm
-    # fi
+    if [ "$FORCE_YES" = true ]; then
+        reboot_confirm="y"
+        echo "Reboot now? (y/n): y [auto-accepted]"
+    else
+        read -p "Reboot now? (y/n): " reboot_confirm
+    fi
 
-    # if [ "$reboot_confirm" = "y" ] || [ "$reboot_confirm" = "Y" ]; then
-    #     echo "🔄 Rebooting system..."
-    #     sudo reboot
-    # else
-    #     echo "⚠️  Please reboot manually and run this script again."
-    #     exit 0
-    # fi
+    if [ "$reboot_confirm" = "y" ] || [ "$reboot_confirm" = "Y" ]; then
+        echo "🔄 Rebooting system..."
+        sudo reboot
+    else
+        echo "⚠️  Please reboot manually and run this script again."
+        exit 0
+    fi
 fi
 
 echo ""
@@ -250,6 +270,45 @@ if ! docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu22.04 nvidia-smi &
 
     echo "✅ NVIDIA Container Toolkit installed."
 fi
+
+# ==========================================
+# Firewall Configuration (UFW)
+# ==========================================
+
+echo ""
+echo "=========================================="
+echo "🛡️  Configuring Firewall (UFW)"
+echo "=========================================="
+echo ""
+
+# Install UFW if not already installed
+if ! command -v ufw &> /dev/null; then
+    echo "📦 Installing UFW..."
+    sudo apt-get update
+    sudo apt-get install -y ufw
+fi
+
+# Set default policies - allow incoming for cloud GPU access
+echo "🔒 Setting default firewall policies..."
+sudo ufw default allow incoming
+sudo ufw default allow outgoing
+
+# Explicitly allow SSH (redundant but ensures it's open)
+echo "🔑 Ensuring SSH access..."
+sudo ufw allow ssh
+
+# Allow ComfyUI port (8188)
+echo "🌐 Allowing ComfyUI port (8188/tcp)..."
+sudo ufw allow 8188/tcp
+
+# Enable UFW
+echo "🔥 Enabling UFW..."
+sudo ufw --force enable
+
+echo "✅ UFW configured and enabled with permissive incoming policy."
+echo ""
+sudo ufw status verbose
+echo ""
 
 # Check for CivitAI API key
 echo ""
