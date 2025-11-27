@@ -3,6 +3,13 @@
 
 set -e
 
+# Check for root privileges
+if [ "$EUID" -ne 0 ]; then
+    echo "This script must be run with sudo. Re-running with sudo..."
+    exec sudo bash "$0" "$@"
+    exit # Should not be reached if exec is successful
+fi
+
 # Parse command line arguments
 FORCE_YES=false
 while [[ $# -gt 0 ]]; do
@@ -128,20 +135,20 @@ if [ "$NEEDS_CUDA_UPGRADE" = true ]; then
     echo "  bash deploy.sh"
     echo ""
     
-    if [ "$FORCE_YES" = true ]; then
-        reboot_confirm="y"
-        echo "Reboot now? (y/n): y [auto-accepted]"
-    else
-        read -p "Reboot now? (y/n): " reboot_confirm
-    fi
+    # if [ "$FORCE_YES" = true ]; then
+    #     reboot_confirm="y"
+    #     echo "Reboot now? (y/n): y [auto-accepted]"
+    # else
+    #     read -p "Reboot now? (y/n): " reboot_confirm
+    # fi
 
-    if [ "$reboot_confirm" = "y" ] || [ "$reboot_confirm" = "Y" ]; then
-        echo "🔄 Rebooting system..."
-        sudo reboot
-    else
-        echo "⚠️  Please reboot manually and run this script again."
-        exit 0
-    fi
+    # if [ "$reboot_confirm" = "y" ] || [ "$reboot_confirm" = "Y" ]; then
+    #     echo "🔄 Rebooting system..."
+    #     sudo reboot
+    # else
+    #     echo "⚠️  Please reboot manually and run this script again."
+    #     exit 0
+    # fi
 fi
 
 echo ""
@@ -210,26 +217,9 @@ Signed-By: /etc/apt/keyrings/docker.asc" | sudo tee /etc/apt/sources.list.d/dock
     echo ""
     echo "✅ Docker installed successfully!"
     echo ""
-    echo "⚠️  IMPORTANT: You need to log out and back in for group changes to take effect."
-    echo "   After relogging, run this script again to complete deployment."
+    echo "⚠️  For your user to run Docker commands without 'sudo' after deployment, you will need to log out and back in."
+    echo "   The deployment script will continue without interruption."
     echo ""
-    
-    if [ "$FORCE_YES" = true ]; then
-        newgrp_confirm="y"
-        echo "Would you like to activate Docker for this session with 'newgrp docker'? (y/n): y [auto-accepted]"
-    else
-        read -p "Would you like to activate Docker for this session with 'newgrp docker'? (y/n): " newgrp_confirm
-    fi
-
-    if [ "$newgrp_confirm" = "y" ] || [ "$newgrp_confirm" = "Y" ]; then
-        echo "🔄 Activating docker group and continuing deployment..."
-        echo ""
-        # Use newgrp to activate group and re-run the script
-        exec sg docker "$0 $@"
-    else
-        echo "Please log out and back in, then run: bash deploy.sh"
-        exit 0
-    fi
 fi
 
 # Verify Docker Compose is available (should be installed as plugin)

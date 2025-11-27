@@ -21,21 +21,36 @@ import time
 import json
 import argparse
 from typing import Optional
+import requests
 
-try:
-    from tensordock import TensorDockAPI
-except ImportError:
-    print("❌ TensorDock SDK not installed!")
-    print("   Install with: pip install tensordock")
-    sys.exit(1)
+# Load env file if present
+from pathlib import Path
+
+def load_env_file(env_path=".env"):
+    """Load environment variables from a .env file if it exists."""
+    env_file = Path(env_path)
+    if env_file.is_file():
+        with env_file.open("r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                os.environ.setdefault(key, value)
+
+
+
+# Now TENSORDOCK_API_KEY, TENSORDOCK_API_TOKEN, CIVITAI_API_KEY can be in os.environ, from .env or user's environment
 
 
 class ComfyUIDeployer:
     """Automated ComfyUI deployment on TensorDock."""
 
-    def __init__(self, api_key: str, api_token: str, civitai_key: str = ""):
+    def __init__(self, api_token: str, civitai_key: str = ""):
         """Initialize deployer with API credentials."""
-        self.api = TensorDockAPI(api_key=api_key, api_token=api_token)
+        self.api_token = api_token
         self.civitai_key = civitai_key
         self.server_info = None
 
@@ -61,16 +76,16 @@ echo ""
 # Update system
 echo "📦 Updating system packages..."
 export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get upgrade -y
+sudo apt-get update
+sudo apt-get upgrade -y
 
 # Install git
 echo "📦 Installing git..."
-apt-get install -y git
+sudo apt-get install -y git
 
 # Clone the repository
 echo "📥 Cloning ComfyUI deployment repository..."
-cd /root
+cd /home/user
 if [ -d "tensordock-deploy" ]; then
     rm -rf tensordock-deploy
 fi
@@ -99,7 +114,7 @@ echo ""
 
 # Run deploy.sh non-interactively
 export DEBIAN_FRONTEND=noninteractive
-bash deploy.sh
+bash deploy.sh -y
 
 echo ""
 echo "=========================================="
@@ -111,82 +126,82 @@ echo "📋 Check logs:"
 echo "   cat /var/log/comfyui-setup.log"
 echo ""
 echo "📊 ComfyUI status:"
-echo "   cd /root/tensordock-deploy && docker compose ps"
+echo "   cd /home/user/tensordock-deploy && docker compose ps"
 echo ""
 echo "📝 View logs:"
-echo "   cd /root/tensordock-deploy && docker compose logs -f"
+echo "   cd /home/user/tensordock-deploy && docker compose logs -f"
 echo ""
 echo "🌐 Access ComfyUI at: http://$(hostname -I | awk '{{print $1}}'):8188"
 echo ""
 """
         return script
 
-    def list_available_gpus(self):
-        """List available GPU models and locations."""
-        print("🔍 Fetching available GPUs...")
+    # def list_available_gpus(self):
+    #     """List available GPU models and locations."""
+    #     print("🔍 Fetching available GPUs...")
 
-        try:
-            # The SDK doesn't expose this directly, so we'd need to use requests
-            # For now, we'll deploy to any available RTX 4090
-            print("   Looking for RTX 4090...")
-            return True
-        except Exception as e:
-            print(f"❌ Error fetching GPU info: {e}")
-            return False
+    #     try:
+    #         # The SDK doesn't expose this directly, so we'd need to use requests
+    #         # For now, we'll deploy to any available RTX 4090
+    #         print("   Looking for RTX 4090...")
+    #         return True
+    #     except Exception as e:
+    #         print(f"❌ Error fetching GPU info: {e}")
+    #         return False
 
-    def deploy_server(self,
-                     gpu_model: str = "rtx4090-pcie-24gb",
-                     gpu_count: int = 1,
-                     vcpus: int = 8,
-                     ram: int = 32,
-                     storage: int = 200,
-                     os: str = "Ubuntu 22.04 LTS") -> Optional[dict]:
-        """Deploy a new ComfyUI server."""
+    # def deploy_server(self,
+    #                  gpu_model: str = "rtx4090-pcie-24gb",
+    #                  gpu_count: int = 1,
+    #                  vcpus: int = 8,
+    #                  ram: int = 32,
+    #                  storage: int = 200,
+    #                  os: str = "Ubuntu 22.04 LTS") -> Optional[dict]:
+    #     """Deploy a new ComfyUI server."""
 
-        print(f"\n🚀 Deploying ComfyUI server:")
-        print(f"   GPU: {gpu_count}x {gpu_model}")
-        print(f"   vCPUs: {vcpus}")
-        print(f"   RAM: {ram} GB")
-        print(f"   Storage: {storage} GB")
-        print(f"   OS: {os}")
-        print()
+    #     print(f"\n🚀 Deploying ComfyUI server:")
+    #     print(f"   GPU: {gpu_count}x {gpu_model}")
+    #     print(f"   vCPUs: {vcpus}")
+    #     print(f"   RAM: {ram} GB")
+    #     print(f"   Storage: {storage} GB")
+    #     print(f"   OS: {os}")
+    #     print()
 
-        # Generate cloud-init script
-        print("📝 Generating cloud-init setup script...")
-        cloudinit_script = self.generate_cloudinit_script()
+    #     # Generate cloud-init script
+    #     print("📝 Generating cloud-init setup script...")
+    #     cloudinit_script = self.generate_cloudinit_script()
 
-        # Save cloud-init script to temp file for debugging
-        with open("/tmp/tensordock_cloudinit.sh", "w") as f:
-            f.write(cloudinit_script)
-        print(f"   💾 Cloud-init script saved to: /tmp/tensordock_cloudinit.sh")
+    #     # Save cloud-init script to temp file for debugging
+    #     with open("/tmp/tensordock_cloudinit.sh", "w") as f:
+    #         f.write(cloudinit_script)
+    #     print(f"   💾 Cloud-init script saved to: /tmp/tensordock_cloudinit.sh")
 
-        try:
-            print("\n⏳ Creating server instance...")
+    #     try:
+    #         print("\n⏳ Creating server instance...")
 
-            # Deploy VM with cloud-init
-            # Note: The SDK might not support cloudinit_file parameter directly
-            # We may need to use raw API calls
-            result = self.api.virtual_machines.deploy_vm(
-                name=f"ComfyUI-{int(time.time())}",
-                gpu_count=gpu_count,
-                gpu_model=gpu_model,
-                vcpus=vcpus,
-                ram=ram,
-                storage=storage,
-                operating_system=os,
-                # The SDK may not support this parameter - need to check
-                # cloudinit_file=cloudinit_script
-            )
+    #         # Deploy VM with cloud-init
+    #         # Note: The SDK might not support cloudinit_file parameter directly
+    #         # We may need to use raw API calls
+    #         result = self.api.virtual_machines.deploy_vm(
+    #             name=f"ComfyUI-{int(time.time())}",
+    #             gpu_count=gpu_count,
+    #             gpu_model=gpu_model,
+    #             vcpus=vcpus,
+    #             ram=ram,
+    #             storage=storage,
+    #             operating_system=os,
+    #             # The SDK may not support this parameter - need to check
+    #             # cloudinit_file=cloudinit_script
+    #         )
 
-            print("✅ Server deployment initiated!")
-            print(f"\n📄 Response: {json.dumps(result, indent=2)}")
+    #         print("✅ Server deployment initiated!")
+    #         print(f"\n📄 Response: {json.dumps(result, indent=2)}")
 
-            self.server_info = result
-            return result
+    #         self.server_info = result
+    #         return result
 
-        except Exception as e:
-            print(f"❌ Deployment failed: {e}")
-            return None
+    #     except Exception as e:
+    #         print(f"❌ Deployment failed: {e}")
+    #         return None
 
     def deploy_with_raw_api(self,
                            gpu_model: str = "rtx4090-pcie-24gb",
@@ -194,8 +209,8 @@ echo ""
                            vcpus: int = 8,
                            ram: int = 32,
                            storage: int = 200,
-                           os: str = "Ubuntu 22.04 LTS"):
-        """Deploy using v2 API (supports cloud-init)."""
+                           operating_system: str = "ubuntu2404"):
+        """Deploy using v2 API."""
 
         import requests
 
@@ -215,7 +230,7 @@ echo ""
 
         # v2 API uses Bearer token authentication
         headers = {
-            "Authorization": f"Bearer {self.api.api_token}",
+            "Authorization": f"Bearer {self.api_token}",
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
@@ -226,13 +241,14 @@ echo ""
             print(f"❌ Failed to get locations: {response.text}")
             return None
 
-        locations_data = response.json()
+        locations_data = response.json().get("data", {})
         locations = locations_data.get("locations", [])
 
         # Find a location with available RTX 4090
         selected_location_id = None
         selected_location_name = None
         selected_gpu_model = None
+        location_list = []
 
         for location in locations:
             location_id = location.get("id")
@@ -243,31 +259,47 @@ echo ""
             # Check GPUs available in this location
             gpus = location.get("gpus", [])
             for gpu in gpus:
-                gpu_name = gpu.get("name", "")
+                gpu_name = gpu.get("v0Name", "")
                 max_count = gpu.get("max_count", 0)
+                port_forwarding_available = gpu.get("network_features", {}).get("port_forwarding_available", False)
 
-                if max_count > 0 and ("4090" in gpu_name.lower() or "rtx4090" in gpu_name.lower()):
-                    selected_location_id = location_id
-                    selected_location_name = location_name
-                    selected_gpu_model = gpu_name
+                if max_count > 0 and ("4090" in gpu_name.lower() or "rtx4090" in gpu_name.lower()) and port_forwarding_available:
+                    location_list.append({
+                        "id": location_id,
+                        "name": location_name,
+                        "gpu_model": gpu_name,
+                        "max_count": max_count,
+                        "price_per_hr": gpu.get('price_per_hr', 'N/A')
+                    })
                     print(f"✅ Found RTX 4090 at: {location_name}")
-                    print(f"   Location ID: {location_id}")
-                    print(f"   GPU: {gpu_name}")
-                    print(f"   Max available: {max_count}")
-                    print(f"   Price: ${gpu.get('price_per_hour', 'N/A')}/hr")
-                    break
+                    
 
-            if selected_location_id:
-                break
+            if len(location_list) > 0 and selected_location_id is None:
+                print(f"Found {len(location_list)} locations with RTX 4090:")
+                for idx, location in enumerate(location_list, 1):
+                    print(f"[{idx}]   {location['name']}: {location['gpu_model']} ({location['max_count']} max) - ${location['price_per_hr']}/hr")
+                print(f"Enter the number of the location you want to deploy to (or 'q' to quit):")
+                user_input = input("> ").strip()
+                if user_input.lower() == 'q':
+                    print("Cancelled")
+                    return None
+                else:
+                    selected_location_index = int(user_input) - 1
+                    print(f"Selected location: {location_list[selected_location_index]['name']}")
+                    print("Are you sure you want to deploy here? (y/n)")
+                    user_input = input("> ").strip()
+                    if user_input.lower() == 'y':
+                        print("Deploying to selected location...")
+                        selected_location_id = location_list[selected_location_index]['id']
+                        selected_location_name = location_list[selected_location_index]['name']
+                        selected_gpu_model = location_list[selected_location_index]['gpu_model']
+                        break
+                    else:
+                        print("Cancelled")
+                        continue
 
         if not selected_location_id:
             print("❌ No RTX 4090 available!")
-            print("\n📋 Available locations (first 3):")
-            for location in locations[:3]:
-                location_name = f"{location.get('city', 'Unknown')}, {location.get('country', 'Unknown')}"
-                gpus = location.get("gpus", [])
-                available_gpus = [f"{gpu['name']} ({gpu['max_count']} max)" for gpu in gpus if gpu.get('max_count', 0) > 0]
-                print(f"   {location_name}: {', '.join(available_gpus) if available_gpus else 'No GPUs available'}")
             return None
 
         # Deploy the server using v2 API
@@ -283,7 +315,7 @@ echo ""
                 "attributes": {
                     "name": f"ComfyUI-{int(time.time())}",
                     "type": "virtualmachine",
-                    "image": "ubuntu2404",  # Ubuntu 24.04 LTS
+                    "image": operating_system,
                     "resources": {
                         "vcpu_count": vcpus,
                         "ram_gb": ram,
@@ -294,9 +326,23 @@ echo ""
                             }
                         }
                     },
+                    "port_forwards": [
+                        {
+                            "internal_port": 22,
+                            "external_port": 0
+                        },
+                        {
+                            "internal_port": 8080,
+                            "external_port": 0
+                        },
+                        {
+                            "internal_port": 8188,
+                            "external_port": 0
+                        }
+                    ],
                     "location_id": selected_location_id,
                     "useDedicatedIp": False,  # Use port forwarding instead
-                    "ssh_key": open('/home/smethan/.ssh/id_ed25519.pub').readline().strip()
+                    "ssh_key": os.environ["SSH_PUB_KEY"]
                     # No cloud-init - will SSH in manually to run setup
                 }
             }
@@ -309,9 +355,9 @@ echo ""
 
         response = requests.post(deploy_url, headers=headers, json=payload)
 
-        if response.status_code not in [200, 201]:
-            print(f"❌ Deployment failed: {response.status_code}")
-            print(f"   Response: {response.text}")
+        if response.json().get("data").get("error") is not None or response.json().get("error") is not None or response.status_code >= 400: 
+            print(f"❌ Deployment failed: {response.json().get('data').get('status')}")
+            print(f"   Response: {response.json()}")
             return None
 
         result = response.json()
@@ -324,9 +370,8 @@ echo ""
         # Extract instance data from v2 API response
         instance_data = result.get("data", {})
         instance_id = instance_data.get("id")
-        attributes = instance_data.get("attributes", {})
-        instance_name = attributes.get("name")
-        instance_status = attributes.get("status")
+        instance_name = instance_data.get("name")
+        instance_status = instance_data.get("status")
 
         print(f"\n🎉 Instance created!")
         print(f"   Instance ID: {instance_id}")
@@ -349,9 +394,16 @@ echo ""
         print(f"\n✅ Instance is ready!")
         print(f"   SSH: ssh -p {ssh_port} root@{ssh_host}")
 
-        # SSH in and run the deployment script
-        print(f"\n🚀 Running deployment script over SSH...")
-        self.run_remote_deployment(ssh_host, ssh_port, cloudinit_script)
+        print("Would you like to run the deployment script now? (y/n)")
+        user_input = input("> ").strip()
+        if user_input.lower() == 'y':
+            print(f"\n🚀 Running deployment script over SSH...")
+            self.run_remote_deployment(ssh_host, ssh_port)
+        else:
+            print("\nDeployment script not run")
+            print("You can run the deployment script manually by SSHing into the instance and running the script:")
+            print(f"   ssh -p {ssh_port} user@{ssh_host}")
+            print(f"   cd /home/user/tensordock-deploy && bash deploy.sh")
 
         return result
 
@@ -362,20 +414,50 @@ echo ""
 
         instance_url = f"https://dashboard.tensordock.com/api/v2/instances/{instance_id}"
         start_time = time.time()
+# EXAMPLE RESPONSE:
+#         {
+#   "type": "instance",
+#   "id": "string",
+#   "name": "string",
+#   "status": "string",
+#   "ipAddress": "string",
+#   "portForwards": [
+#     {
+#       "internal_port": "number",
+#       "external_port": "number"
+#     }
+#   ],
+#   "resources": {
+#     "vcpu_count": "number",
+#     "ram_gb": "number",
+#     "storage_gb": "number",
+#     "gpus": {
+#       "gpu-model-name": {
+#         "count": "number",
+#         "v0Name": "string"
+#       }
+#     }
+#   },
+#   "rateHourly": "number"
+# }
 
         while time.time() - start_time < max_wait:
             response = requests.get(instance_url, headers=headers)
             if response.status_code == 200:
-                data = response.json().get("data", {})
-                attributes = data.get("attributes", {})
-                status = attributes.get("status")
+                data = response.json()
+                status = data.get("status")
 
                 print(f"   Status: {status}...", end="\r")
 
                 if status == "running":
                     # Get connection details
-                    ssh_host = attributes.get("ip_address")
-                    ssh_port = attributes.get("ssh_port", 22)
+                    ssh_host = data.get("ipAddress")
+                    for port_forward in data.get("portForwards"):
+                        if port_forward.get("internal_port") == 22:
+                            ssh_port = port_forward.get("external_port")
+                            break
+                    else:
+                        ssh_port = None
 
                     if ssh_host:
                         print(f"\n   Instance running at {ssh_host}:{ssh_port}")
@@ -388,14 +470,11 @@ echo ""
 
         return None, None
 
-    def run_remote_deployment(self, host: str, port: int, setup_script: str):
+    def run_remote_deployment(self, host: str, port: int,):
         """SSH into the instance and run the deployment script."""
         import subprocess
 
-        # Save setup script to temp file
-        script_path = "/tmp/tensordock_remote_setup.sh"
-        with open(script_path, "w") as f:
-            f.write(setup_script)
+        script_path = "/tmp/tensordock_setup.sh"
 
         print(f"   Uploading setup script...")
 
@@ -405,9 +484,9 @@ echo ""
             "-P", str(port),
             "-o", "StrictHostKeyChecking=no",
             "-o", "UserKnownHostsFile=/dev/null",
-            "-i", "/home/smethan/.ssh/id_ed25519",
+            "-i", f"{os.path.expanduser('~')}/.ssh/tensordock_key",
             script_path,
-            f"root@{host}:/root/setup.sh"
+            f"user@{host}:/home/user/setup.sh"
         ]
 
         result = subprocess.run(scp_cmd, capture_output=True, text=True)
@@ -419,15 +498,16 @@ echo ""
         print(f"\n   🚀 Executing deployment (this will take ~10-15 minutes)...")
         print(f"   Follow along with the output:\n")
 
-        # Run the script over SSH
+        # Run the script over SSH with sudo to ensure all commands have root privileges
+        # Use -tt to force PTY allocation which fixes stdin/stdout for interactive commands
         ssh_cmd = [
             "ssh",
             "-p", str(port),
             "-o", "StrictHostKeyChecking=no",
             "-o", "UserKnownHostsFile=/dev/null",
-            "-i", "/home/smethan/.ssh/id_ed25519",
-            f"root@{host}",
-            "bash /root/setup.sh"
+            "-i", f"{os.path.expanduser('~')}/.ssh/tensordock_key",
+            f"user@{host}",
+            "sudo bash /home/user/setup.sh"
         ]
 
         # Stream output in real-time
@@ -443,7 +523,122 @@ echo ""
             print(f"   ComfyUI should be running at: http://{host}:8188")
         else:
             print(f"\n\n⚠️  Deployment script exited with code {process.returncode}")
-            print(f"   Check logs: ssh -p {port} -i /home/smethan/.ssh/id_ed25519 root@{host} 'tail -f /var/log/comfyui-setup.log'")
+            print(f"   Check logs: ssh -p {port} -i {os.environ['SSH_PUB_KEY']} user@{host} 'tail -f /var/log/comfyui-setup.log'")
+
+    def run_ssh_setup_on_selected_instance(self):
+        """List instances and run SSH setup on the selected one."""
+        import requests
+
+        print("🔍 Fetching all instances...")
+
+        # v2 API uses Bearer token authentication
+        headers = {
+            "Authorization": f"Bearer {self.api_token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+
+        instances_url = "https://dashboard.tensordock.com/api/v2/instances"
+        response = requests.get(instances_url, headers=headers)
+
+        if response.status_code != 200:
+            print(f"❌ Failed to fetch instances: {response.text}")
+            return
+
+        response_data = response.json()
+        instances = response_data.get("data", [])
+
+        if not instances:
+            print("📭 No instances found")
+            return
+
+        print(f"\n📋 Found {len(instances)} instance(s):\n")
+
+        # Display instances
+        instance_details = []
+        for idx, instance in enumerate(instances, 1):
+            instance_id = instance.get("id")
+            response_data = requests.get(f"{instances_url}/{instance_id}", headers=headers)
+            instance_data = response_data.json()
+            name = instance_data.get("name", "N/A")
+            status = instance_data.get("status", "N/A")
+            ip_address = instance_data.get("ipAddress", "N/A")
+            
+            # Find SSH port
+            ssh_port = None
+            port_forwards = instance_data.get("portForwards", [])
+            for port_forward in port_forwards:
+                if port_forward.get("internal_port") == 22:
+                    ssh_port = port_forward.get("external_port", "N/A")
+                    break
+            
+            gpu_info = ", ".join([f"{count}x {name}" for name, info in instance_data.get("resources", {}).get("gpus", {}).items() for count in [info.get("count", 0)] if count > 0])
+
+            print(f"[{idx}] {name}")
+            print(f"    ID: {instance_id}")
+            print(f"    Status: {status}")
+            print(f"    IP: {ip_address}:{ssh_port}")
+            print(f"    GPUs: {gpu_info or 'None'}")
+            print()
+
+            instance_details.append({
+                "id": instance_id,
+                "name": name,
+                "ip": ip_address,
+                "ssh_port": ssh_port,
+                "status": status
+            })
+
+        # Ask user to select instance
+        print("Enter instance number to run SSH setup on (or 'q' to quit):")
+        user_input = input("> ").strip()
+
+        if user_input.lower() == 'q':
+            print("Cancelled")
+            return
+
+        # Parse selection
+        try:
+            selection = int(user_input)
+            if not (1 <= selection <= len(instance_details)):
+                print("❌ Invalid instance number")
+                return
+        except ValueError:
+            print("❌ Invalid input")
+            return
+
+        # Get selected instance details
+        selected_instance = instance_details[selection - 1]
+        
+        if selected_instance["status"] != "running":
+            print(f"⚠️  Warning: Instance is in '{selected_instance['status']}' state, not 'running'")
+            print("Continue anyway? (y/n)")
+            confirm = input("> ").strip().lower()
+            if confirm != 'y':
+                print("Cancelled")
+                return
+
+        print(f"\n✅ Selected: {selected_instance['name']}")
+        print(f"   IP: {selected_instance['ip']}:{selected_instance['ssh_port']}")
+        
+        # Confirm
+        print("\nThis will run the deployment setup script on this instance. Continue? (y/n)")
+        confirm = input("> ").strip().lower()
+        if confirm != 'y':
+            print("Cancelled")
+            return
+
+        # Generate and save the setup script
+        print("\n📝 Generating setup script...")
+        cloudinit_script = self.generate_cloudinit_script()
+        
+        with open("/tmp/tensordock_setup.sh", "w") as f:
+            f.write(cloudinit_script)
+        print(f"   💾 Setup script saved to: /tmp/tensordock_setup.sh")
+
+        # Run the deployment
+        print(f"\n🚀 Running SSH deployment on {selected_instance['name']}...")
+        self.run_remote_deployment(selected_instance['ip'], selected_instance['ssh_port'])
 
     def list_and_manage_instances(self):
         """List all instances and allow termination."""
@@ -453,7 +648,7 @@ echo ""
 
         # v2 API uses Bearer token authentication
         headers = {
-            "Authorization": f"Bearer {self.api.api_token}",
+            "Authorization": f"Bearer {self.api_token}",
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
@@ -469,13 +664,9 @@ echo ""
         print(response.content)
 
         # Handle different response formats
-        data = response_data.get("data", [])
-        if isinstance(data, dict):
-            # Format: {"data": {"instances": [...]}}
-            instances = data.get("instances", [])
-        else:
-            # Format: {"data": [...]}
-            instances = data
+        instances = response_data.get("data", [])
+        
+       
 
         if not instances:
             print("📭 No instances found")
@@ -483,27 +674,25 @@ echo ""
 
         print(f"\n📋 Found {len(instances)} instance(s):\n")
 
+        
         # Display instances
         for idx, instance in enumerate(instances, 1):
             instance_id = instance.get("id")
-            attributes = instance.get("attributes", {})
-            name = attributes.get("name", "N/A")
-            status = attributes.get("status", "N/A")
-            created = attributes.get("created_at", "N/A")
-            ip_address = attributes.get("ip_address", "N/A")
-            ssh_port = attributes.get("ssh_port", "N/A")
-
-            # Get GPU info
-            resources = attributes.get("resources", {})
-            gpus = resources.get("gpus", {})
-            gpu_info = ", ".join([f"{count}x {name}" for name, info in gpus.items() for count in [info.get("count", 0)] if count > 0])
+            response_data = requests.get(f"{instances_url}/{instance_id}", headers=headers)
+            instance_data = response_data.json()
+            name = instance_data.get("name", "N/A")
+            status = instance_data.get("status", "N/A")
+            hourly_rate = instance_data.get("rateHourly", "N/A")
+            ip_address = instance_data.get("ipAddress", "N/A")
+            ssh_port = instance_data.get("portForwards")[0].get("external_port", "N/A")
+            gpu_info = ", ".join([f"{count}x {name}" for name, info in instance_data.get("resources", {}).get("gpus", {}).items() for count in [info.get("count", 0)] if count > 0])
 
             print(f"[{idx}] {name}")
             print(f"    ID: {instance_id}")
             print(f"    Status: {status}")
             print(f"    IP: {ip_address}:{ssh_port}")
             print(f"    GPUs: {gpu_info or 'None'}")
-            print(f"    Created: {created}")
+            print(f"    Hourly Rate: {hourly_rate}")
             print()
 
         # Ask user which to terminate
@@ -533,8 +722,8 @@ echo ""
             return
 
         print(f"\n⚠️  You are about to terminate {len(instances_to_delete)} instance(s):")
-        for instance in instances_to_delete:
-            print(f"   - {instance.get('attributes', {}).get('name')} ({instance.get('id')})")
+        for idx, instance in enumerate(instances_to_delete, 1):
+            print(f"   - {instance.get('name')} ({instance.get('id')})")
 
         confirm = input("\nType 'yes' to confirm: ").strip().lower()
         if confirm != 'yes':
@@ -543,9 +732,9 @@ echo ""
 
         # Terminate instances
         print()
-        for instance in instances_to_delete:
+        for idx, instance in enumerate(instances_to_delete, 1):
             instance_id = instance.get("id")
-            instance_name = instance.get("attributes", {}).get("name")
+            instance_name = instance.get("name")
 
             print(f"🗑️  Terminating {instance_name}...")
 
@@ -573,12 +762,12 @@ echo ""
             print(f"\n🔑 Connection Details:")
             print(f"   IP: {server.get('ip', 'N/A')}")
             print(f"   Port: {server.get('port', '22')}")
-            print(f"   Username: root")
+            print(f"   Username: user")
             print(f"   Password: {server.get('password', 'N/A')}")
             print(f"\n🌐 ComfyUI will be available at:")
             print(f"   http://{server.get('ip', 'N/A')}:8188")
             print(f"\n⏱️  Cloud-init setup takes ~10-15 minutes")
-            print(f"   Monitor: ssh -p {server.get('port', '22')} root@{server.get('ip', 'N/A')}")
+            print(f"   Monitor: ssh -p {server.get('port', '22')} user@{server.get('ip', 'N/A')}")
             print(f"   Check logs: tail -f /var/log/comfyui-setup.log")
 
 
@@ -610,6 +799,8 @@ Get API keys at: https://marketplace.tensordock.com/api
                        help="Deploy a new ComfyUI server")
     parser.add_argument("--list", action="store_true",
                        help="List all instances and optionally terminate them")
+    parser.add_argument("--ssh-setup", action="store_true",
+                       help="Run SSH setup on an existing instance")
 
     parser.add_argument("--gpu-model", default="rtx4090-pcie-24gb",
                        help="GPU model (default: rtx4090-pcie-24gb)")
@@ -624,21 +815,11 @@ Get API keys at: https://marketplace.tensordock.com/api
 
     args = parser.parse_args()
 
-    # Get credentials from environment
-    api_key = os.getenv("TENSORDOCK_API_KEY")
-    api_token = os.getenv("TENSORDOCK_API_TOKEN")
-    civitai_key = os.getenv("CIVITAI_API_KEY", "")
+    # Call early in script -- before argument parsing or key usage
+    load_env_file()
 
-    if not api_key or not api_token:
-        print("❌ Error: TensorDock API credentials required!")
-        print("\nSet environment variables:")
-        print("  export TENSORDOCK_API_KEY='your_key'")
-        print("  export TENSORDOCK_API_TOKEN='your_token'")
-        print("\nGet credentials at: https://marketplace.tensordock.com/api")
-        sys.exit(1)
-
-    # Create deployer
-    deployer = ComfyUIDeployer(api_key, api_token, civitai_key)
+    # Create deployer with credentials from env file
+    deployer = ComfyUIDeployer(os.environ["TENSORDOCK_API_TOKEN"], os.environ["CIVITAI_API_KEY"])
 
     if args.deploy:
         # Deploy new instance
@@ -652,6 +833,9 @@ Get API keys at: https://marketplace.tensordock.com/api
     elif args.list:
         # List and manage instances
         deployer.list_and_manage_instances()
+    elif args.ssh_setup:
+        # Run SSH setup on selected instance
+        deployer.run_ssh_setup_on_selected_instance()
     else:
         parser.print_help()
 

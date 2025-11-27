@@ -21,3 +21,5 @@ Thumbs.db
 *.txt
 orig_entry.sh
 server_info.json
+memory-bank/
+.vscode/
