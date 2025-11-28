@@ -1,7 +1,87 @@
 #!/bin/bash
 # ComfyUI TensorDock One-Command Deploy Script
 
-set -e
+
+# Function to handle dpkg locks
+handle_dpkg_locks() {
+    local max_attempts=120  # Try for up to 10 minutes (120 * 5 seconds)
+    local attempt=0
+    local lock_found=false
+
+    echo "🔒 Checking for existing dpkg locks..."
+
+    # Define common dpkg lock files
+    local LOCK_FILES=("/var/lib/dpkg/lock" "/var/lib/dpkg/lock-frontend" "/var/cache/apt/archives/lock")
+
+    while [ $attempt -lt $max_attempts ]; do
+        lock_found=false
+        for lock_file in "${LOCK_FILES[@]}"; do
+            if [ -f "$lock_file" ]; then
+                lock_found=true
+                echo "⚠️  dpkg lock file found: $lock_file"
+
+                local process_id=$(sudo lsof -t "$lock_file" 2>/dev/null)
+                if [ -n "$process_id" ]; then
+                    local cmdline=$(ps -p "$process_id" -o comm=)
+                    echo "   Process $process_id ($cmdline) is holding the lock."
+
+                    if [[ "$cmdline" == "apt"* || "$cmdline" == "dpkg"* || "$cmdline" == "unattended-upgr"* ]]; then
+                        echo "   Waiting for system updates to complete (process $process_id)..."
+                        echo "   This is normal Ubuntu security update maintenance"
+                    else
+                        echo "   Non-APT/DPKG process holding lock. Suggesting cleanup."
+                        if [ "$FORCE_YES" = true ]; then
+                            echo "   Attempting to kill rogue process $process_id and remove lock (auto-accepted)."
+                            sudo kill -9 "$process_id" 2>/dev/null || true
+                            sudo rm -f "$lock_file"
+                            lock_found=false # Assume cleared for this file
+                        else
+                            read -p "   Process $process_id ($cmdline) is holding the lock. Kill it and remove lock files? (y/n): " confirm_kill
+                            if [ "$confirm_kill" = "y" ] || [ "$confirm_kill" = "Y" ]; then
+                                sudo kill -9 "$process_id" 2>/dev/null || true
+                                sudo rm -f "$lock_file"
+                                lock_found=false
+                            fi
+                        fi
+                    fi
+                else
+                    echo "   Lock file $lock_file found, but no process is holding it. Removing orphaned lock."
+                    if [ "$FORCE_YES" = true ]; then
+                        echo "   Removing orphaned lock file (auto-accepted)."
+                        sudo rm -f "$lock_file"
+                        lock_found=false
+                    else
+                        read -p "   Lock file $lock_file appears orphaned. Remove it? (y/n): " confirm_remove
+                        if [ "$confirm_remove" = "y" ] || [ "$confirm_remove" = "Y" ]; then
+                            sudo rm -f "$lock_file"
+                            lock_found=false
+                        fi
+                    fi
+                fi
+            fi
+        done
+
+        if [ "$lock_found" = false ]; then
+            echo "✅ No dpkg locks found. Proceeding."
+            return 0 # Success
+        fi
+
+        attempt=$((attempt + 1))
+        if [ $attempt -lt $max_attempts ]; then
+            echo "   Retrying in 5 seconds... (Attempt $attempt of $max_attempts)"
+            sleep 5
+        fi
+    done
+
+    echo "❌ Failed to resolve dpkg locks after $max_attempts attempts. Please check manually."
+    exit 1
+}
+
+# Call the function early in the script
+handle_dpkg_locks
+
+# Add CUDA path to environment for current script execution
+export PATH="/usr/local/cuda-12.8/bin:$PATH"
 
 # Check for root privileges
 if [ "$EUID" -ne 0 ]; then
@@ -9,9 +89,6 @@ if [ "$EUID" -ne 0 ]; then
     exec sudo bash "$0" "$@"
     exit # Should not be reached if exec is successful
 fi
-
-# Add CUDA path to environment for current script execution
-export PATH="/usr/local/cuda-12.8/bin:$PATH"
 
 # Define state file for post-reboot continuation
 STATE_FILE="/var/lib/tensordock-deploy/.reboot_required"
@@ -113,7 +190,7 @@ if [ "$NEEDS_CUDA_UPGRADE" = true ]; then
 
     # Step 2: Purge old NVIDIA installations
     echo "🗑️  Removing old NVIDIA drivers and CUDA installations..."
-    sudo apt-get --purge remove nvidia-\* cuda-\* libnvidia-\* -y || true
+    sudo apt-get -o DPkg::Lock::Timeout=120 -y --purge remove nvidia-\* cuda-\* libnvidia-\* || true
 
     # Step 3: Download CUDA keyring
     echo "📥 Downloading NVIDIA CUDA keyring..."
@@ -125,12 +202,12 @@ if [ "$NEEDS_CUDA_UPGRADE" = true ]; then
 
     # Step 5: Update package lists
     echo "📋 Updating package lists..."
-    sudo apt-get update
+    sudo apt-get -o DPkg::Lock::Timeout=60 update
 
     # Step 6: Install CUDA 12.8 and drivers
     echo "📦 Installing CUDA 12.8, drivers, and NVIDIA Container Toolkit..."
     echo "   This may take several minutes..."
-    sudo apt-get install -y cuda-toolkit-12-8 nvidia-driver-570-server-open nvidia-container-toolkit
+    sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 install -y cuda-toolkit-12-8 nvidia-driver-570-server-open nvidia-container-toolkit
 
     # Step 6a: Install NVIDIA GPUDirect Storage
     echo "💾 Installing NVIDIA GPUDirect Storage..."
