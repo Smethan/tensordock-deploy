@@ -1,6 +1,45 @@
 #!/bin/bash
 # ComfyUI TensorDock One-Command Deploy Script
 
+# Add CUDA path to environment for current script execution
+export PATH="/usr/local/cuda-12.8/bin:$PATH"
+
+# Check for root privileges
+if [ "$EUID" -ne 0 ]; then
+    echo "This script must be run with sudo. Re-running with sudo..."
+    exec sudo bash "$0" "$@"
+    exit # Should not be reached if exec is successful
+fi
+
+# Define state file for post-reboot continuation
+STATE_FILE="/var/lib/tensordock-deploy/.reboot_required"
+
+# Check if this is a post-reboot run
+if [ -f "$STATE_FILE" ]; then
+    echo "🔄 Detected post-reboot run. Cleaning up state and continuing deployment..."
+    sudo rm "$STATE_FILE"
+    # We'll skip CUDA installation by setting this flag
+    SKIP_CUDA_INSTALL=true
+else
+    SKIP_CUDA_INSTALL=false
+fi
+
+# Parse command line arguments
+FORCE_YES=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -y|--yes)
+            FORCE_YES=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [-y|--yes]"
+            echo "  -y, --yes    Automatically accept all prompts"
+            exit 1
+            ;;
+    esac
+done
 
 # Function to handle dpkg locks
 handle_dpkg_locks() {
@@ -80,45 +119,7 @@ handle_dpkg_locks() {
 # Call the function early in the script
 handle_dpkg_locks
 
-# Add CUDA path to environment for current script execution
-export PATH="/usr/local/cuda-12.8/bin:$PATH"
 
-# Check for root privileges
-if [ "$EUID" -ne 0 ]; then
-    echo "This script must be run with sudo. Re-running with sudo..."
-    exec sudo bash "$0" "$@"
-    exit # Should not be reached if exec is successful
-fi
-
-# Define state file for post-reboot continuation
-STATE_FILE="/var/lib/tensordock-deploy/.reboot_required"
-
-# Check if this is a post-reboot run
-if [ -f "$STATE_FILE" ]; then
-    echo "🔄 Detected post-reboot run. Cleaning up state and continuing deployment..."
-    sudo rm "$STATE_FILE"
-    # We'll skip CUDA installation by setting this flag
-    SKIP_CUDA_INSTALL=true
-else
-    SKIP_CUDA_INSTALL=false
-fi
-
-# Parse command line arguments
-FORCE_YES=false
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        -y|--yes)
-            FORCE_YES=true
-            shift
-            ;;
-        *)
-            echo "Unknown option: $1"
-            echo "Usage: $0 [-y|--yes]"
-            echo "  -y, --yes    Automatically accept all prompts"
-            exit 1
-            ;;
-    esac
-done
 
 echo "=========================================="
 echo "ComfyUI Docker Deployment for TensorDock"
