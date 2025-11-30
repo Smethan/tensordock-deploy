@@ -199,7 +199,7 @@ echo ""
                            vcpus: int = 8,
                            ram: int = 32,
                            storage: int = 200,
-                           operating_system: str = "ubuntu2404"):
+                           operating_system: str = "ubuntu2404_ml_everything"):
         """Deploy using v2 API."""
 
         import requests
@@ -382,7 +382,7 @@ echo ""
             return result
 
         print(f"\n✅ Instance is ready!")
-        print(f"   SSH: ssh -p {ssh_port} root@{ssh_host}")
+        print(f"   SSH: ssh -p {ssh_port} user@{ssh_host}")
 
         print("Would you like to run the deployment script now? (y/n)")
         user_input = input("> ").strip()
